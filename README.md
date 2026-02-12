@@ -6,7 +6,7 @@ This is a Console based mini amazon system with persistent storage using JSON fi
 Python 3.x, No external libraries are required
 
 ## How to run
-Open console and type "python main.py". To use the GUI type "python gui.py"
+Open a terminal in the project folder and run "python main.py". For the GUI, run "python gui.py".
 
 ## Features Implemented 
 - Register + login (username must be unique, password must be at least 6 characters)
