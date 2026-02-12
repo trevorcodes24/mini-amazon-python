@@ -25,14 +25,14 @@ def main():
 
         choice = input("Choose: ").strip()
 
-        # WELCOME MENU
         if not (current_user and current_user.is_logged_in):
             if choice == "1":
+                users, products, _orders = initialize_data()
                 current_user = login_user(users)
 
             elif choice == "2":
+                users, products, _orders = initialize_data()
                 register_user(users)
-                # reload users after save (safe)
                 users, products, _orders = initialize_data()
 
             elif choice == "3":
@@ -41,12 +41,12 @@ def main():
             else:
                 print("Invalid choice")
 
-        # STORE MENU
         else:
+            users, products, _orders = initialize_data()
+            current_user.cart = users[current_user.username].get("cart", current_user.cart)
+
             if choice == "1":
                 browse_products(users, current_user, products)
-                # reload products after any possible changes (safe)
-                users, products, _orders = initialize_data()
 
             elif choice == "2":
                 search_products(products)
@@ -56,7 +56,6 @@ def main():
 
             elif choice == "4":
                 checkout(users, current_user, products)
-                users, products, _orders = initialize_data()
 
             elif choice == "5":
                 view_order_history(current_user)
