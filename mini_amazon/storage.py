@@ -1,9 +1,11 @@
 import json
 import os
+import hashlib
+import hmac
+import secrets
 
 
 def load_json(filename, default):
-    """Load JSON from disk; return default if missing/invalid."""
     if os.path.exists(filename):
         try:
             with open(filename, "r") as f:
@@ -14,9 +16,22 @@ def load_json(filename, default):
 
 
 def save_json(filename, data):
-    """Save JSON to disk."""
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    return f"{salt}${digest}"
+
+
+def verify_password(stored: str, provided: str) -> bool:
+    if "$" not in stored:
+        return stored == provided
+    salt, digest = stored.split("$", 1)
+    check = hashlib.sha256((salt + provided).encode("utf-8")).hexdigest()
+    return hmac.compare_digest(digest, check)
 
 
 def initialize_data():
