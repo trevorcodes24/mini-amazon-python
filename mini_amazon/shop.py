@@ -1,5 +1,6 @@
+import os
 from datetime import datetime
-from storage import load_json, save_json
+from storage import load_json, save_json, hash_password, verify_password
 
 
 class User:
@@ -22,7 +23,7 @@ def register_user(users):
         print("Username taken")
         return
 
-    users[name] = {"password": pw, "cart": []}
+    users[name] = {"password": hash_password(pw), "cart": []}
     save_json("users.json", users)
     print("Account created!")
 
@@ -31,7 +32,11 @@ def login_user(users):
     name = input("Username: ").strip()
     pw = input("Password: ").strip()
 
-    if name in users and users[name]["password"] == pw:
+    if name in users and verify_password(users[name]["password"], pw):
+        if "$" not in users[name]["password"]:
+            users[name]["password"] = hash_password(pw)
+            save_json("users.json", users)
+
         u = User(name, pw)
         u.is_logged_in = True
         u.cart = users[name].get("cart", [])
@@ -42,14 +47,10 @@ def login_user(users):
     return None
 
 
-def print_products(products):
+def browse_products(users, current_user, products):
     print("\nProducts:")
     for pid, p in products.items():
         print(f"{pid}. {p['name']} - ${p['price']} (Stock: {p['stock']})")
-
-
-def browse_products(users, current_user, products):
-    print_products(products)
 
     product_id = input("\nEnter product ID to view details (or press Enter to go back): ").strip()
     if not product_id:
@@ -86,7 +87,6 @@ def browse_products(users, current_user, products):
         print("Not enough stock")
         return
 
-    merged = False
     for item in current_user.cart:
         if item["product"] == product_id:
             new_qty = item["quantity"] + qty
@@ -94,10 +94,8 @@ def browse_products(users, current_user, products):
                 print("Not enough stock for that total quantity")
                 return
             item["quantity"] = new_qty
-            merged = True
             break
-
-    if not merged:
+    else:
         current_user.cart.append(
             {"product": product_id, "name": p["name"], "quantity": qty, "price": p["price"]}
         )
@@ -218,7 +216,8 @@ def checkout(users, current_user, products):
     items_out = []
     total = 0
     for item in current_user.cart:
-        total += item["price"] * item["quantity"]
+        line_total = item["price"] * item["quantity"]
+        total += line_total
         items_out.append(
             {
                 "product_id": item["product"],
@@ -244,18 +243,27 @@ def checkout(users, current_user, products):
     save_json("users.json", users)
     save_json("products.json", products)
 
-    print("\nReceipt")
-    print("-" * 30)
-    print(f"Order ID: {order_id}")
-    print(f"Username: {current_user.username}")
-    print(f"Time: {timestamp}")
-    print("-" * 30)
+    receipt_lines = []
+    receipt_lines.append("Receipt")
+    receipt_lines.append("-" * 30)
+    receipt_lines.append(f"Order ID: {order_id}")
+    receipt_lines.append(f"Username: {current_user.username}")
+    receipt_lines.append(f"Time: {timestamp}")
+    receipt_lines.append("-" * 30)
     for it in items_out:
-        print(f"{it['name']} x{it['qty']} @ ${it['unit_price']}")
-    print("-" * 30)
-    print(f"Total: ${total}")
-    print("-" * 30)
+        receipt_lines.append(f"{it['name']} x{it['qty']} @ ${it['unit_price']}")
+    receipt_lines.append("-" * 30)
+    receipt_lines.append(f"Total: ${total}")
+    receipt_lines.append("-" * 30)
+
+    print("\n" + "\n".join(receipt_lines))
     print("Purchase complete!")
+
+    os.makedirs("receipts", exist_ok=True)
+    receipt_path = os.path.join("receipts", f"{order_id}.txt")
+    with open(receipt_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(receipt_lines))
+    print(f"Receipt saved to: {receipt_path}")
 
 
 def view_order_history(current_user):
@@ -271,5 +279,6 @@ def view_order_history(current_user):
         print("-" * 30)
         print(f"Order: {o.get('order_id')} | Time: {o.get('timestamp')} | Total: ${o.get('total')}")
         for it in o.get("items", []):
-            print(f"  - {it.get('name')} x{it.get('qty')} (${it.get('unit_price')} each)")
+            qty = it.get("qty", it.get("quantity"))
+            print(f"  - {it.get('name')} x{qty} (${it.get('unit_price')} each)")
     print("-" * 30)
