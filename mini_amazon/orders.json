@@ -1,0 +1,36 @@
+[
+  {
+    "order_id": "O0001",
+    "username": "Travvvvghghg",
+    "items": [
+      {
+        "product_id": "1",
+        "name": "Laptop",
+        "qty": 2,
+        "unit_price": 999
+      }
+    ],
+    "total": 1998,
+    "timestamp": "2026-02-12 18:50:04"
+  },
+  {
+    "order_id": "O0002",
+    "username": "Trevor Gatimu",
+    "items": [
+      {
+        "product_id": "1",
+        "name": "Laptop",
+        "qty": 1,
+        "unit_price": 999
+      },
+      {
+        "product_id": "3",
+        "name": "Headphones",
+        "qty": 1,
+        "unit_price": 149
+      }
+    ],
+    "total": 1148,
+    "timestamp": "2026-02-12 19:10:56"
+  }
+]
