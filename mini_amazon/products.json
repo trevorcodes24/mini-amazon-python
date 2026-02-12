@@ -1,17 +1,1 @@
-{
-  "1": {
-    "name": "Laptop",
-    "price": 999,
-    "stock": 2
-  },
-  "2": {
-    "name": "Phone",
-    "price": 599,
-    "stock": 5
-  },
-  "3": {
-    "name": "Headphones",
-    "price": 149,
-    "stock": 19
-  }
-}
+{}
