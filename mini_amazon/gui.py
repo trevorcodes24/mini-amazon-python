@@ -1,7 +1,8 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from storage import initialize_data, load_json, save_json
 from datetime import datetime
+from storage import initialize_data, load_json, save_json, hash_password, verify_password
 
 
 class MiniAmazonGUI(tk.Tk):
@@ -20,7 +21,6 @@ class MiniAmazonGUI(tk.Tk):
         except tk.TclError:
             pass
 
-        self.style.configure("TFrame", padding=0)
         self.style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"))
         self.style.configure("SubHeader.TLabel", font=("Segoe UI", 11))
         self.style.configure("Title.TLabel", font=("Segoe UI", 14, "bold"))
@@ -68,14 +68,18 @@ class MiniAmazonGUI(tk.Tk):
             return False, "Password must be at least 6 characters long."
         if username in self.users:
             return False, "Username already exists."
-        self.users[username] = {"password": password, "cart": []}
+        self.users[username] = {"password": hash_password(password), "cart": []}
         save_json("users.json", self.users)
         self.reload_data()
         return True, "Account created."
 
     def login(self, username, password):
         username = username.strip()
-        if username in self.users and self.users[username]["password"] == password:
+        if username in self.users and verify_password(self.users[username]["password"], password):
+            if "$" not in self.users[username]["password"]:
+                self.users[username]["password"] = hash_password(password)
+                save_json("users.json", self.users)
+                self.reload_data()
             self.current_user = username
             self.reload_data()
             return True, "Logged in."
@@ -205,6 +209,7 @@ class MiniAmazonGUI(tk.Tk):
 
         save_json("products.json", self.products)
         save_json("orders.json", orders)
+
         self.users[self.current_user]["cart"] = []
         save_json("users.json", self.users)
         self.reload_data()
@@ -220,7 +225,13 @@ class MiniAmazonGUI(tk.Tk):
         for it in items_out:
             receipt_lines.append(f"{it['name']}  x{it['qty']}  @ ${it['unit_price']}")
         receipt_lines += ["-" * 36, f"Total: ${total}", "-" * 36]
-        return True, "\n".join(receipt_lines)
+
+        os.makedirs("receipts", exist_ok=True)
+        receipt_path = os.path.join("receipts", f"{order_id}.txt")
+        with open(receipt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(receipt_lines))
+
+        return True, "\n".join(receipt_lines) + f"\n\nSaved: {receipt_path}"
 
     def user_orders(self):
         orders = load_json("orders.json", [])
@@ -253,7 +264,6 @@ class WelcomeFrame(ttk.Frame):
         ttk.Button(card, text="Register", command=self.do_register).grid(row=6, column=1, sticky="ew")
 
         ttk.Separator(card).grid(row=7, column=0, columnspan=2, sticky="ew", pady=16)
-
         ttk.Button(card, text="Exit", command=self.app.destroy).grid(row=8, column=0, columnspan=2, sticky="ew")
 
         card.columnconfigure(0, weight=1)
@@ -279,15 +289,12 @@ class AppFrame(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-
         self.status_var = tk.StringVar(value="")
 
         top = ttk.Frame(self, padding=(14, 12))
         top.pack(fill="x")
 
-        self.title_lbl = ttk.Label(top, text="Store", style="Header.TLabel")
-        self.title_lbl.pack(side="left")
-
+        ttk.Label(top, text="Store", style="Header.TLabel").pack(side="left")
         self.user_lbl = ttk.Label(top, text="", style="SubHeader.TLabel")
         self.user_lbl.pack(side="left", padx=(12, 0))
 
@@ -365,11 +372,8 @@ class StoreTab(ttk.Frame):
         sb.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=sb.set)
 
-        side = ttk.Frame(self, padding=(12, 0))
-        side.pack(fill="x", pady=(10, 0))
-
         self.details_var = tk.StringVar(value="Select a product to see details.")
-        ttk.Label(side, textvariable=self.details_var, style="SubHeader.TLabel").pack(side="left")
+        ttk.Label(self, textvariable=self.details_var, style="SubHeader.TLabel").pack(anchor="w", pady=(10, 0))
 
         addbox = ttk.Frame(self)
         addbox.pack(fill="x", pady=(10, 0))
