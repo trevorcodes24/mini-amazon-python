@@ -5,13 +5,12 @@ __pycache__/
 venv/
 
 # Runtime application data
-mini_amazon/users.json
-mini_amazon/orders.json
-mini_amazon/products.json
+users.json
+orders.json
+products.json
 
 # Generated receipts
 receipts/
-mini_amazon/receipts/
 
 # Editor / OS
 .vscode/
