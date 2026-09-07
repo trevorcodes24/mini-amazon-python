@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime application data
+mini_amazon/users.json
+mini_amazon/orders.json
+mini_amazon/products.json
+
+# Generated receipts
+receipts/
+mini_amazon/receipts/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
