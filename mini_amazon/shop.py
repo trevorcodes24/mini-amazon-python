@@ -1,7 +1,12 @@
 import os
 from datetime import datetime
 from storage import load_json, save_json
-from service import register_account, authenticate_user
+from service import (
+    register_account,
+    authenticate_user,
+    add_item_to_cart,
+    remove_item_from_cart,
+)
 
 
 class User:
@@ -69,30 +74,18 @@ def browse_products(users, current_user, products):
         print("Quantity must be a number")
         return
 
-    if qty <= 0:
-        print("Quantity must be positive")
-        return
+    success, message = add_item_to_cart(
+        users,
+        products,
+        current_user.username,
+        product_id,
+        qty,
+    )
 
-    if p["stock"] < qty:
-        print("Not enough stock")
-        return
+    if success:
+        current_user.cart = users[current_user.username]["cart"]
 
-    for item in current_user.cart:
-        if item["product"] == product_id:
-            new_qty = item["quantity"] + qty
-            if new_qty > p["stock"]:
-                print("Not enough stock for that total quantity")
-                return
-            item["quantity"] = new_qty
-            break
-    else:
-        current_user.cart.append(
-            {"product": product_id, "name": p["name"], "quantity": qty, "price": p["price"]}
-        )
-
-    users[current_user.username]["cart"] = current_user.cart
-    save_json("users.json", users)
-    print("Added to cart!")
+    print(message)
 
 
 def search_products(products):
@@ -129,44 +122,28 @@ def view_cart(users, current_user):
         )
     print(f"Total: ${total}")
 
-    pid = input("\nEnter product ID to remove/reduce (or press Enter to go back): ").strip()
+    pid = input(
+        "Enter product ID to remove/reduce (or press Enter to go back): "
+    ).strip()
+
     if not pid:
         return
 
-    idx = None
-    for i, item in enumerate(cart):
-        if item["product"] == pid:
-            idx = i
-            break
+    amt = input(
+        "How many to remove? (number or 'all'): "
+    ).strip().lower()
 
-    if idx is None:
-        print("That product is not in your cart.")
-        return
+    success, message = remove_item_from_cart(
+        users,
+        current_user.username,
+        pid,
+        amt,
+    )
 
-    amt = input("How many to remove? (number or 'all'): ").strip().lower()
-    if amt == "all":
-        cart.pop(idx)
-    else:
-        try:
-            remove_qty = int(amt)
-        except ValueError:
-            print("Invalid amount")
-            return
+    if success:
+        current_user.cart = users[current_user.username]["cart"]
 
-        if remove_qty <= 0:
-            print("Remove quantity must be positive")
-            return
-
-        if remove_qty >= cart[idx]["quantity"]:
-            cart.pop(idx)
-        else:
-            cart[idx]["quantity"] -= remove_qty
-
-    users[current_user.username]["cart"] = cart
-    current_user.cart = cart
-    save_json("users.json", users)
-    print("Cart updated!")
-
+    print(message)
 
 def checkout(users, current_user, products):
     if not current_user.cart:

@@ -3,7 +3,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from storage import initialize_data, load_json, save_json
-from service import register_account, authenticate_user
+from service import (
+    register_account,
+    authenticate_user,
+    get_user_cart,
+    add_item_to_cart,
+    remove_item_from_cart,
+)
 
 
 class MiniAmazonGUI(tk.Tk):
@@ -93,70 +99,35 @@ class MiniAmazonGUI(tk.Tk):
     def get_cart(self):
         if not self.current_user:
             return []
-        return self.users.get(self.current_user, {}).get("cart", [])
 
-    def set_cart(self, cart):
-        self.users[self.current_user]["cart"] = cart
-        save_json("users.json", self.users)
-        self.reload_data()
+        return get_user_cart(self.users, self.current_user)
 
     def add_to_cart(self, product_id, qty):
-        if product_id not in self.products:
-            return False, "Invalid product."
-        try:
-            qty = int(qty)
-        except ValueError:
-            return False, "Quantity must be a number."
-        if qty <= 0:
-            return False, "Quantity must be greater than 0."
-        stock = int(self.products[product_id]["stock"])
-        if qty > stock:
-            return False, f"Not enough stock. Available: {stock}"
+        success, message = add_item_to_cart(
+            self.users,
+            self.products,
+            self.current_user,
+            product_id,
+            qty,
+        )
 
-        cart = self.get_cart()
-        for item in cart:
-            if item["product"] == product_id:
-                new_qty = item["quantity"] + qty
-                if new_qty > stock:
-                    return False, f"Not enough stock for that total quantity. Available: {stock}"
-                item["quantity"] = new_qty
-                self.set_cart(cart)
-                return True, "Cart updated."
+        if success:
+            self.reload_data()
 
-        cart.append({
-            "product": product_id,
-            "name": self.products[product_id]["name"],
-            "quantity": qty,
-            "price": self.products[product_id]["price"],
-        })
-        self.set_cart(cart)
-        return True, "Added to cart."
+        return success, message
 
-    def remove_from_cart(self, product_id, amt):
-        cart = self.get_cart()
-        idx = next((i for i, it in enumerate(cart) if it["product"] == product_id), None)
-        if idx is None:
-            return False, "Item not in cart."
+    def remove_from_cart(self, product_id, amount):
+        success, message = remove_item_from_cart(
+            self.users,
+            self.current_user,
+            product_id,
+            amount,
+        )
 
-        if isinstance(amt, str) and amt.strip().lower() == "all":
-            cart.pop(idx)
-            self.set_cart(cart)
-            return True, "Item removed."
+        if success:
+            self.reload_data()
 
-        try:
-            amt = int(amt)
-        except ValueError:
-            return False, "Remove amount must be a number or 'all'."
-        if amt <= 0:
-            return False, "Remove amount must be greater than 0."
-
-        if amt >= cart[idx]["quantity"]:
-            cart.pop(idx)
-        else:
-            cart[idx]["quantity"] -= amt
-
-        self.set_cart(cart)
-        return True, "Cart updated."
+        return success, message
 
     def next_order_id(self):
         orders = load_json("orders.json", [])
