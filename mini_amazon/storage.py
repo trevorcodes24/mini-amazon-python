@@ -1,40 +1,27 @@
 import json
 import os
-import hashlib
-import hmac
-import secrets
 
 
 def load_json(filename, default):
+    """Load JSON data from a file, returning the default if unavailable."""
     if os.path.exists(filename):
         try:
-            with open(filename, "r") as f:
-                return json.load(f)
+            with open(filename, "r", encoding="utf-8") as file:
+                return json.load(file)
         except (json.JSONDecodeError, OSError):
             return default
+
     return default
 
 
 def save_json(filename, data):
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-    return f"{salt}${digest}"
-
-
-def verify_password(stored: str, provided: str) -> bool:
-    if "$" not in stored:
-        return stored == provided
-    salt, digest = stored.split("$", 1)
-    check = hashlib.sha256((salt + provided).encode("utf-8")).hexdigest()
-    return hmac.compare_digest(digest, check)
+    """Write data to a JSON file."""
+    with open(filename, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
 
 
 def initialize_data():
+    """Load application data and create the default product catalogue."""
     users = load_json("users.json", {})
     products = load_json("products.json", {})
     orders = load_json("orders.json", [])

@@ -2,7 +2,8 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from storage import initialize_data, load_json, save_json, hash_password, verify_password
+from storage import initialize_data, load_json, save_json
+from security import hash_password, verify_password
 
 
 class MiniAmazonGUI(tk.Tk):
@@ -76,10 +77,6 @@ class MiniAmazonGUI(tk.Tk):
     def login(self, username, password):
         username = username.strip()
         if username in self.users and verify_password(self.users[username]["password"], password):
-            if "$" not in self.users[username]["password"]:
-                self.users[username]["password"] = hash_password(password)
-                save_json("users.json", self.users)
-                self.reload_data()
             self.current_user = username
             self.reload_data()
             return True, "Logged in."

@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
-from storage import load_json, save_json, hash_password, verify_password
+from storage import load_json, save_json
+from security import hash_password, verify_password
 
 
 class User:
@@ -33,10 +34,6 @@ def login_user(users):
     pw = input("Password: ").strip()
 
     if name in users and verify_password(users[name]["password"], pw):
-        if "$" not in users[name]["password"]:
-            users[name]["password"] = hash_password(pw)
-            save_json("users.json", users)
-
         u = User(name, pw)
         u.is_logged_in = True
         u.cart = users[name].get("cart", [])
