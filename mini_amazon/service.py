@@ -1,5 +1,7 @@
+from datetime import datetime
+
 from security import hash_password, verify_password
-from storage import save_json
+from storage import load_json, save_json
 
 
 def register_account(users, username, password):
@@ -128,3 +130,129 @@ def remove_item_from_cart(users, username, product_id, amount):
 
     save_json("users.json", users)
     return True, "Cart updated."
+
+def _next_order_id(orders):
+    """Generate the next sequential order ID."""
+    max_number = 0
+
+    for order in orders:
+        order_id = str(order.get("order_id", ""))
+
+        if order_id.startswith("O") and order_id[1:].isdigit():
+            max_number = max(max_number, int(order_id[1:]))
+
+    return f"O{max_number + 1:04d}"
+
+
+def checkout_account(users, products, username):
+    """Validate a cart, create an order, update stock, and clear the cart."""
+    if username not in users:
+        return False, "User account not found.", None
+
+    cart = users[username].get("cart", [])
+
+    if not cart:
+        return False, "Cart is empty.", None
+
+    # Validate the whole cart before modifying anything.
+    for item in cart:
+        product_id = item["product"]
+
+        if product_id not in products:
+            return (
+                False,
+                f"Product {product_id} no longer exists.",
+                None,
+            )
+
+        available_stock = int(products[product_id]["stock"])
+
+        if item["quantity"] > available_stock:
+            return (
+                False,
+                (
+                    f"Not enough stock for "
+                    f"{products[product_id]['name']}. "
+                    f"Available: {available_stock}"
+                ),
+                None,
+            )
+
+    orders = load_json("orders.json", [])
+    order_id = _next_order_id(orders)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    order_items = []
+    total = 0
+
+    for item in cart:
+        line_total = item["price"] * item["quantity"]
+        total += line_total
+
+        order_items.append(
+            {
+                "product_id": item["product"],
+                "name": item["name"],
+                "qty": item["quantity"],
+                "unit_price": item["price"],
+            }
+        )
+
+    order = {
+        "order_id": order_id,
+        "username": username,
+        "items": order_items,
+        "total": total,
+        "timestamp": timestamp,
+    }
+
+    # Only mutate state after every cart item has passed validation.
+    for item in cart:
+        products[item["product"]]["stock"] -= item["quantity"]
+
+    orders.append(order)
+    users[username]["cart"] = []
+
+    save_json("products.json", products)
+    save_json("orders.json", orders)
+    save_json("users.json", users)
+
+    return True, "Purchase complete.", order
+
+
+def get_order_history(username):
+    """Return all orders belonging to a user."""
+    orders = load_json("orders.json", [])
+
+    return [
+        order
+        for order in orders
+        if order.get("username") == username
+    ]
+
+
+def format_receipt(order):
+    """Create a printable receipt for an order."""
+    lines = [
+        "Receipt",
+        "-" * 36,
+        f"Order ID: {order['order_id']}",
+        f"Username: {order['username']}",
+        f"Time: {order['timestamp']}",
+        "-" * 36,
+    ]
+
+    for item in order["items"]:
+        lines.append(
+            f"{item['name']} x{item['qty']} @ ${item['unit_price']}"
+        )
+
+    lines.extend(
+        [
+            "-" * 36,
+            f"Total: ${order['total']}",
+            "-" * 36,
+        ]
+    )
+
+    return "\n".join(lines)

@@ -1,14 +1,16 @@
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime
-from storage import initialize_data, load_json, save_json
+from storage import initialize_data
 from service import (
     register_account,
     authenticate_user,
     get_user_cart,
     add_item_to_cart,
     remove_item_from_cart,
+    checkout_account,
+    get_order_history,
+    format_receipt,
 )
 
 
@@ -129,85 +131,33 @@ class MiniAmazonGUI(tk.Tk):
 
         return success, message
 
-    def next_order_id(self):
-        orders = load_json("orders.json", [])
-        max_n = 0
-        for o in orders:
-            oid = str(o.get("order_id", ""))
-            if oid.startswith("O") and oid[1:].isdigit():
-                max_n = max(max_n, int(oid[1:]))
-        return f"O{max_n + 1:04d}"
-
     def checkout(self):
-        cart = self.get_cart()
-        if not cart:
-            return False, "Cart is empty."
+        success, message, order = checkout_account(
+            self.users,
+            self.products,
+            self.current_user,
+        )
 
-        for item in cart:
-            pid = item["product"]
-            if pid not in self.products:
-                return False, f"Product {pid} no longer exists."
-            if item["quantity"] > int(self.products[pid]["stock"]):
-                return False, f"Not enough stock for {self.products[pid]['name']}."
+        if not success:
+            return False, message
 
-        for item in cart:
-            pid = item["product"]
-            self.products[pid]["stock"] -= item["quantity"]
-
-        order_id = self.next_order_id()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        items_out = []
-        total = 0
-        for item in cart:
-            total += item["price"] * item["quantity"]
-            items_out.append({
-                "product_id": item["product"],
-                "name": item["name"],
-                "qty": item["quantity"],
-                "unit_price": item["price"],
-            })
-
-        order = {
-            "order_id": order_id,
-            "username": self.current_user,
-            "items": items_out,
-            "total": total,
-            "timestamp": timestamp,
-        }
-
-        orders = load_json("orders.json", [])
-        orders.append(order)
-
-        save_json("products.json", self.products)
-        save_json("orders.json", orders)
-
-        self.users[self.current_user]["cart"] = []
-        save_json("users.json", self.users)
         self.reload_data()
 
-        receipt_lines = [
-            "Receipt",
-            "-" * 36,
-            f"Order ID: {order_id}",
-            f"Username: {self.current_user}",
-            f"Time: {timestamp}",
-            "-" * 36,
-        ]
-        for it in items_out:
-            receipt_lines.append(f"{it['name']}  x{it['qty']}  @ ${it['unit_price']}")
-        receipt_lines += ["-" * 36, f"Total: ${total}", "-" * 36]
+        receipt = format_receipt(order)
 
         os.makedirs("receipts", exist_ok=True)
-        receipt_path = os.path.join("receipts", f"{order_id}.txt")
-        with open(receipt_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(receipt_lines))
+        receipt_path = os.path.join(
+            "receipts",
+            f"{order['order_id']}.txt",
+        )
 
-        return True, "\n".join(receipt_lines) + f"\n\nSaved: {receipt_path}"
+        with open(receipt_path, "w", encoding="utf-8") as file:
+            file.write(receipt + "\n")
+
+        return True, receipt + f"\n\nSaved: {receipt_path}"
 
     def user_orders(self):
-        orders = load_json("orders.json", [])
-        return [o for o in orders if o.get("username") == self.current_user]
+        return get_order_history(self.current_user)
 
 
 class WelcomeFrame(ttk.Frame):

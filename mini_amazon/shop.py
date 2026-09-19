@@ -1,13 +1,13 @@
 import os
-from datetime import datetime
-from storage import load_json, save_json
 from service import (
     register_account,
     authenticate_user,
     add_item_to_cart,
     remove_item_from_cart,
+    checkout_account,
+    get_order_history,
+    format_receipt,
 )
-
 
 class User:
     def __init__(self, username, password=None):
@@ -146,106 +146,55 @@ def view_cart(users, current_user):
     print(message)
 
 def checkout(users, current_user, products):
-    if not current_user.cart:
-        print("Cart is empty")
+    success, message, order = checkout_account(
+        users,
+        products,
+        current_user.username,
+    )
+
+    if not success:
+        print(message)
         return
 
-    for item in current_user.cart:
-        pid = item["product"]
-        qty = item["quantity"]
+    current_user.cart = users[current_user.username]["cart"]
 
-        if pid not in products:
-            print(f"Product {pid} no longer exists. Remove it from cart first.")
-            return
+    receipt = format_receipt(order)
 
-        if qty > products[pid]["stock"]:
-            print(
-                f"Not enough stock for {products[pid]['name']}. "
-                f"Requested: {qty}, Available: {products[pid]['stock']}"
-            )
-            return
-
-    for item in current_user.cart:
-        pid = item["product"]
-        products[pid]["stock"] -= item["quantity"]
-
-    orders = load_json("orders.json", [])
-
-    max_n = 0
-    for o in orders:
-        oid = str(o.get("order_id", ""))
-        if oid.startswith("O") and oid[1:].isdigit():
-            max_n = max(max_n, int(oid[1:]))
-    order_id = f"O{max_n + 1:04d}"
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    items_out = []
-    total = 0
-    for item in current_user.cart:
-        line_total = item["price"] * item["quantity"]
-        total += line_total
-        items_out.append(
-            {
-                "product_id": item["product"],
-                "name": item["name"],
-                "qty": item["quantity"],
-                "unit_price": item["price"],
-            }
-        )
-
-    order = {
-        "order_id": order_id,
-        "username": current_user.username,
-        "items": items_out,
-        "total": total,
-        "timestamp": timestamp,
-    }
-
-    orders.append(order)
-    save_json("orders.json", orders)
-
-    current_user.cart = []
-    users[current_user.username]["cart"] = []
-    save_json("users.json", users)
-    save_json("products.json", products)
-
-    receipt_lines = []
-    receipt_lines.append("Receipt")
-    receipt_lines.append("-" * 30)
-    receipt_lines.append(f"Order ID: {order_id}")
-    receipt_lines.append(f"Username: {current_user.username}")
-    receipt_lines.append(f"Time: {timestamp}")
-    receipt_lines.append("-" * 30)
-    for it in items_out:
-        receipt_lines.append(f"{it['name']} x{it['qty']} @ ${it['unit_price']}")
-    receipt_lines.append("-" * 30)
-    receipt_lines.append(f"Total: ${total}")
-    receipt_lines.append("-" * 30)
-
-    print("\n" + "\n".join(receipt_lines))
-    print("Purchase complete!")
+    print("\n" + receipt)
+    print(message)
 
     os.makedirs("receipts", exist_ok=True)
-    receipt_path = os.path.join("receipts", f"{order_id}.txt")
-    with open(receipt_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(receipt_lines))
+    receipt_path = os.path.join(
+        "receipts",
+        f"{order['order_id']}.txt",
+    )
+
+    with open(receipt_path, "w", encoding="utf-8") as file:
+        file.write(receipt + "\n")
+
     print(f"Receipt saved to: {receipt_path}")
 
-
 def view_order_history(current_user):
-    orders = load_json("orders.json", [])
-    user_orders = [o for o in orders if o.get("username") == current_user.username]
+    orders = get_order_history(current_user.username)
 
-    if not user_orders:
+    if not orders:
         print("No orders yet.")
         return
 
     print("\nOrder History:")
-    for o in user_orders:
+
+    for order in orders:
         print("-" * 30)
-        print(f"Order: {o.get('order_id')} | Time: {o.get('timestamp')} | Total: ${o.get('total')}")
-        for it in o.get("items", []):
-            qty = it.get("qty", it.get("quantity"))
-            print(f"  - {it.get('name')} x{qty} (${it.get('unit_price')} each)")
+        print(
+            f"Order: {order['order_id']} | "
+            f"Time: {order['timestamp']} | "
+            f"Total: ${order['total']}"
+        )
+
+        for item in order["items"]:
+            print(
+                f"  - {item['name']} x{item['qty']} "
+                f"(${item['unit_price']} each)"
+            )
+
     print("-" * 30)
