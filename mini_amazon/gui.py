@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from storage import initialize_data, load_json, save_json
-from security import hash_password, verify_password
+from service import register_account, authenticate_user
 
 
 class MiniAmazonGUI(tk.Tk):
@@ -62,25 +62,29 @@ class MiniAmazonGUI(tk.Tk):
             app.status_var.set(text)
 
     def register(self, username, password):
-        username = username.strip()
-        if not username:
-            return False, "Username cannot be empty."
-        if len(password) < 6:
-            return False, "Password must be at least 6 characters long."
-        if username in self.users:
-            return False, "Username already exists."
-        self.users[username] = {"password": hash_password(password), "cart": []}
-        save_json("users.json", self.users)
-        self.reload_data()
-        return True, "Account created."
+    	success, message = register_account(
+        	self.users,
+        	username,
+        	password,
+    	)
+
+    	if success:
+        	self.reload_data()
+
+    	return success, message
 
     def login(self, username, password):
-        username = username.strip()
-        if username in self.users and verify_password(self.users[username]["password"], password):
-            self.current_user = username
-            self.reload_data()
-            return True, "Logged in."
-        return False, "Invalid username or password."
+    	success, message = authenticate_user(
+        	self.users,
+        	username,
+        	password,
+   	 )
+
+    	if success:
+        	self.current_user = username.strip()
+        	self.reload_data()
+
+    	return success, message
 
     def logout(self):
         self.current_user = None

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from storage import load_json, save_json
-from security import hash_password, verify_password
+from service import register_account, authenticate_user
 
 
 class User:
@@ -16,31 +16,24 @@ def register_user(users):
     name = input("Username: ").strip()
     pw = input("Password: ").strip()
 
-    if len(pw) < 6:
-        print("Password must be at least 6 characters long.")
-        return
-
-    if name in users:
-        print("Username taken")
-        return
-
-    users[name] = {"password": hash_password(pw), "cart": []}
-    save_json("users.json", users)
-    print("Account created!")
+    success, message = register_account(users, name, pw)
+    print(message)
 
 
 def login_user(users):
     name = input("Username: ").strip()
     pw = input("Password: ").strip()
 
-    if name in users and verify_password(users[name]["password"], pw):
-        u = User(name, pw)
-        u.is_logged_in = True
-        u.cart = users[name].get("cart", [])
-        print("Logged in!")
-        return u
+    success, message = authenticate_user(users, name, pw)
 
-    print("Invalid login")
+    if success:
+        user = User(name, pw)
+        user.is_logged_in = True
+        user.cart = users[name].get("cart", [])
+        print(message)
+        return user
+
+    print(message)
     return None
 
 
