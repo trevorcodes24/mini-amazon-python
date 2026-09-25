@@ -1,8 +1,8 @@
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from storage import initialize_data
-from service import (
+from .storage import initialize_data
+from .service import (
     register_account,
     authenticate_user,
     get_user_cart,
@@ -179,7 +179,7 @@ class WelcomeFrame(ttk.Frame):
         self.username.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 10))
 
         ttk.Label(card, text="Password").grid(row=4, column=0, sticky="w")
-        self.password = ttk.Entry(card, width=34, show="•")
+        self.password = ttk.Entry(card, width=34, show="â€¢")
         self.password.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(4, 14))
 
         ttk.Button(card, text="Login", style="Accent.TButton", command=self.do_login).grid(row=6, column=0, sticky="ew", padx=(0, 8))
@@ -341,7 +341,7 @@ class StoreTab(ttk.Frame):
         if not pid:
             return
         p = self.app.products[pid]
-        self.details_var.set(f"ID: {pid}  •  {p['name']}  •  ${p['price']}  •  Stock: {p['stock']}")
+        self.details_var.set(f"ID: {pid}  â€¢  {p['name']}  â€¢  ${p['price']}  â€¢  Stock: {p['stock']}")
 
     def add_selected(self):
         pid = self.selected_pid()

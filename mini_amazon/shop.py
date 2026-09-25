@@ -1,5 +1,5 @@
 import os
-from service import (
+from .service import (
     register_account,
     authenticate_user,
     add_item_to_cart,
