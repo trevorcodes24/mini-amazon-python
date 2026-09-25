@@ -1,5 +1,5 @@
-from storage import initialize_data
-from shop import (
+from .storage import initialize_data
+from .shop import (
     register_user,
     login_user,
     browse_products,

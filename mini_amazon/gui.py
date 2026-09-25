@@ -1,8 +1,17 @@
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime
-from storage import initialize_data, load_json, save_json, hash_password, verify_password
+from .storage import initialize_data
+from .service import (
+    register_account,
+    authenticate_user,
+    get_user_cart,
+    add_item_to_cart,
+    remove_item_from_cart,
+    checkout_account,
+    get_order_history,
+    format_receipt,
+)
 
 
 class MiniAmazonGUI(tk.Tk):
@@ -61,29 +70,29 @@ class MiniAmazonGUI(tk.Tk):
             app.status_var.set(text)
 
     def register(self, username, password):
-        username = username.strip()
-        if not username:
-            return False, "Username cannot be empty."
-        if len(password) < 6:
-            return False, "Password must be at least 6 characters long."
-        if username in self.users:
-            return False, "Username already exists."
-        self.users[username] = {"password": hash_password(password), "cart": []}
-        save_json("users.json", self.users)
-        self.reload_data()
-        return True, "Account created."
+        success, message = register_account(
+            self.users,
+            username,
+            password,
+        )
+
+        if success:
+            self.reload_data()
+
+        return success, message
 
     def login(self, username, password):
-        username = username.strip()
-        if username in self.users and verify_password(self.users[username]["password"], password):
-            if "$" not in self.users[username]["password"]:
-                self.users[username]["password"] = hash_password(password)
-                save_json("users.json", self.users)
-                self.reload_data()
-            self.current_user = username
+        success, message = authenticate_user(
+            self.users,
+            username,
+            password,
+     )
+
+        if success:
+            self.current_user = username.strip()
             self.reload_data()
-            return True, "Logged in."
-        return False, "Invalid username or password."
+
+        return success, message
 
     def logout(self):
         self.current_user = None
@@ -92,150 +101,63 @@ class MiniAmazonGUI(tk.Tk):
     def get_cart(self):
         if not self.current_user:
             return []
-        return self.users.get(self.current_user, {}).get("cart", [])
 
-    def set_cart(self, cart):
-        self.users[self.current_user]["cart"] = cart
-        save_json("users.json", self.users)
-        self.reload_data()
+        return get_user_cart(self.users, self.current_user)
 
     def add_to_cart(self, product_id, qty):
-        if product_id not in self.products:
-            return False, "Invalid product."
-        try:
-            qty = int(qty)
-        except ValueError:
-            return False, "Quantity must be a number."
-        if qty <= 0:
-            return False, "Quantity must be greater than 0."
-        stock = int(self.products[product_id]["stock"])
-        if qty > stock:
-            return False, f"Not enough stock. Available: {stock}"
+        success, message = add_item_to_cart(
+            self.users,
+            self.products,
+            self.current_user,
+            product_id,
+            qty,
+        )
 
-        cart = self.get_cart()
-        for item in cart:
-            if item["product"] == product_id:
-                new_qty = item["quantity"] + qty
-                if new_qty > stock:
-                    return False, f"Not enough stock for that total quantity. Available: {stock}"
-                item["quantity"] = new_qty
-                self.set_cart(cart)
-                return True, "Cart updated."
+        if success:
+            self.reload_data()
 
-        cart.append({
-            "product": product_id,
-            "name": self.products[product_id]["name"],
-            "quantity": qty,
-            "price": self.products[product_id]["price"],
-        })
-        self.set_cart(cart)
-        return True, "Added to cart."
+        return success, message
 
-    def remove_from_cart(self, product_id, amt):
-        cart = self.get_cart()
-        idx = next((i for i, it in enumerate(cart) if it["product"] == product_id), None)
-        if idx is None:
-            return False, "Item not in cart."
+    def remove_from_cart(self, product_id, amount):
+        success, message = remove_item_from_cart(
+            self.users,
+            self.current_user,
+            product_id,
+            amount,
+        )
 
-        if isinstance(amt, str) and amt.strip().lower() == "all":
-            cart.pop(idx)
-            self.set_cart(cart)
-            return True, "Item removed."
+        if success:
+            self.reload_data()
 
-        try:
-            amt = int(amt)
-        except ValueError:
-            return False, "Remove amount must be a number or 'all'."
-        if amt <= 0:
-            return False, "Remove amount must be greater than 0."
-
-        if amt >= cart[idx]["quantity"]:
-            cart.pop(idx)
-        else:
-            cart[idx]["quantity"] -= amt
-
-        self.set_cart(cart)
-        return True, "Cart updated."
-
-    def next_order_id(self):
-        orders = load_json("orders.json", [])
-        max_n = 0
-        for o in orders:
-            oid = str(o.get("order_id", ""))
-            if oid.startswith("O") and oid[1:].isdigit():
-                max_n = max(max_n, int(oid[1:]))
-        return f"O{max_n + 1:04d}"
+        return success, message
 
     def checkout(self):
-        cart = self.get_cart()
-        if not cart:
-            return False, "Cart is empty."
+        success, message, order = checkout_account(
+            self.users,
+            self.products,
+            self.current_user,
+        )
 
-        for item in cart:
-            pid = item["product"]
-            if pid not in self.products:
-                return False, f"Product {pid} no longer exists."
-            if item["quantity"] > int(self.products[pid]["stock"]):
-                return False, f"Not enough stock for {self.products[pid]['name']}."
+        if not success:
+            return False, message
 
-        for item in cart:
-            pid = item["product"]
-            self.products[pid]["stock"] -= item["quantity"]
-
-        order_id = self.next_order_id()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        items_out = []
-        total = 0
-        for item in cart:
-            total += item["price"] * item["quantity"]
-            items_out.append({
-                "product_id": item["product"],
-                "name": item["name"],
-                "qty": item["quantity"],
-                "unit_price": item["price"],
-            })
-
-        order = {
-            "order_id": order_id,
-            "username": self.current_user,
-            "items": items_out,
-            "total": total,
-            "timestamp": timestamp,
-        }
-
-        orders = load_json("orders.json", [])
-        orders.append(order)
-
-        save_json("products.json", self.products)
-        save_json("orders.json", orders)
-
-        self.users[self.current_user]["cart"] = []
-        save_json("users.json", self.users)
         self.reload_data()
 
-        receipt_lines = [
-            "Receipt",
-            "-" * 36,
-            f"Order ID: {order_id}",
-            f"Username: {self.current_user}",
-            f"Time: {timestamp}",
-            "-" * 36,
-        ]
-        for it in items_out:
-            receipt_lines.append(f"{it['name']}  x{it['qty']}  @ ${it['unit_price']}")
-        receipt_lines += ["-" * 36, f"Total: ${total}", "-" * 36]
+        receipt = format_receipt(order)
 
         os.makedirs("receipts", exist_ok=True)
-        receipt_path = os.path.join("receipts", f"{order_id}.txt")
-        with open(receipt_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(receipt_lines))
+        receipt_path = os.path.join(
+            "receipts",
+            f"{order['order_id']}.txt",
+        )
 
-        return True, "\n".join(receipt_lines) + f"\n\nSaved: {receipt_path}"
+        with open(receipt_path, "w", encoding="utf-8") as file:
+            file.write(receipt + "\n")
+
+        return True, receipt + f"\n\nSaved: {receipt_path}"
 
     def user_orders(self):
-        orders = load_json("orders.json", [])
-        return [o for o in orders if o.get("username") == self.current_user]
+        return get_order_history(self.current_user)
 
 
 class WelcomeFrame(ttk.Frame):
@@ -257,7 +179,7 @@ class WelcomeFrame(ttk.Frame):
         self.username.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 10))
 
         ttk.Label(card, text="Password").grid(row=4, column=0, sticky="w")
-        self.password = ttk.Entry(card, width=34, show="•")
+        self.password = ttk.Entry(card, width=34, show="â€¢")
         self.password.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(4, 14))
 
         ttk.Button(card, text="Login", style="Accent.TButton", command=self.do_login).grid(row=6, column=0, sticky="ew", padx=(0, 8))
@@ -419,7 +341,7 @@ class StoreTab(ttk.Frame):
         if not pid:
             return
         p = self.app.products[pid]
-        self.details_var.set(f"ID: {pid}  •  {p['name']}  •  ${p['price']}  •  Stock: {p['stock']}")
+        self.details_var.set(f"ID: {pid}  â€¢  {p['name']}  â€¢  ${p['price']}  â€¢  Stock: {p['stock']}")
 
     def add_selected(self):
         pid = self.selected_pid()
