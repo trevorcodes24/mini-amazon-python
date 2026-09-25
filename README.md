@@ -167,11 +167,11 @@ Generated user data, inventory state, orders, and receipts are excluded from Git
 
 ### Graphical Interface
 
-Screenshot coming soon.
+![Graphical interface](docs/images/gui.png)
 
 ### Command-Line Interface
 
-Screenshot coming soon.
+![Command-line interface](docs/images/cli.png)
 
 ## Limitations
 
