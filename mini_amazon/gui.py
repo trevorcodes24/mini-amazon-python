@@ -70,29 +70,29 @@ class MiniAmazonGUI(tk.Tk):
             app.status_var.set(text)
 
     def register(self, username, password):
-    	success, message = register_account(
-        	self.users,
-        	username,
-        	password,
-    	)
+        success, message = register_account(
+            self.users,
+            username,
+            password,
+        )
 
-    	if success:
-        	self.reload_data()
+        if success:
+            self.reload_data()
 
-    	return success, message
+        return success, message
 
     def login(self, username, password):
-    	success, message = authenticate_user(
-        	self.users,
-        	username,
-        	password,
-   	 )
+        success, message = authenticate_user(
+            self.users,
+            username,
+            password,
+     )
 
-    	if success:
-        	self.current_user = username.strip()
-        	self.reload_data()
+        if success:
+            self.current_user = username.strip()
+            self.reload_data()
 
-    	return success, message
+        return success, message
 
     def logout(self):
         self.current_user = None
